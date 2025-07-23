@@ -1,13 +1,20 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 30
+    compileSdk 34
+    namespace 'just.trust.me'
+    
     defaultConfig {
         applicationId 'just.trust.me'
-        minSdkVersion 17
-        targetSdkVersion 30
+        minSdk 21
+        targetSdk 34
         versionCode 3
         versionName '.3'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     buildTypes {

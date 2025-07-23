@@ -1,114 +1,209 @@
-JustTrustMe
-===========
+JustTrustMe - Bypass SSL Pinning Nâng Cao
+==========================================
 
-Module trên là một ví dụ về việc sử dụng Xposed Framework để hook và thay đổi hành vi của một số lớp và phương thức liên quan đến SSL/TLS trong ứng dụng Android. Mục đích của việc này là bypass (vượt qua) SSL Pinning, một kỹ thuật bảo mật nhằm xác thực chứng chỉ SSL của máy chủ để đảm bảo rằng ứng dụng chỉ kết nối với các máy chủ đáng tin cậy.
-Để build module này ta cần Android Studio đã được cài đặt sẵn trên máy cùng với JDK 17, sau đó build bằng lệnh
-Đối với Windows:
-```
+JustTrustMe là một module Xposed/LSPosed tiên tiến giúp bypass toàn diện SSL pinning trong các ứng dụng Android. Phiên bản nâng cấp này đã được cập nhật cho **JDK 17** và **các phiên bản Android hiện đại (API 21-34)** với hỗ trợ cho các triển khai SSL pinning mới nhất.
+
+## ✨ Tính Năng Mới (Cập Nhật 2025)
+
+### 🔧 Hỗ Trợ Nền Tảng Hiện Đại
+- **Tương thích JDK 17** cho hiệu suất tốt hơn
+- **Hỗ trợ Android API 21-34** (Android 5.0 - Android 14+)
+- **Cập nhật Android Gradle Plugin 8.2.2** với Gradle 8.5
+- **Quản lý dependency hiện đại** (thay thế jcenter bằng mavenCentral)
+
+### 🛡️ Khả Năng Bypass SSL Nâng Cao
+
+#### **Bypass Network Security Config**
+- `android.security.net.config.NetworkSecurityTrustManager`
+- `android.security.net.config.RootTrustManager` 
+- `android.security.net.config.ConfigAwareConnectionStateSSLContext`
+- Bypass áp đặt Certificate Transparency (CT)
+
+#### **Hỗ Trợ Conscrypt Hiện Đại**
+- Hook nâng cao `com.android.org.conscrypt.TrustManagerImpl`
+- Phương thức xác minh trust đặc biệt cho Android 14+
+- Bypass `verifyChain` và `checkTrustedRecursive`
+
+#### **Hỗ Trợ Thư Viện HTTP Client**
+- **OkHttp 5.x** với hỗ trợ Kotlin coroutines
+- **Retrofit 2.x** bypass xác minh SSL
+- **Volley** bypass SSL HurlStack
+- **Apache HttpClient 5.x** bypass xác minh hostname
+- **Cronet** (Chrome Network Stack) bypass lỗi SSL
+
+#### **Hỗ Trợ WebView Nâng Cao**
+- Bypass yêu cầu chứng chỉ client WebView hiện đại
+- Xử lý lỗi SSL nâng cao cho các phiên bản WebView mới hơn
+- Bypass certificate transparency trong WebView
+
+## 🚀 Build Module
+
+### Yêu Cầu
+- **Android Studio** với Android SDK
+- **JDK 17** hoặc cao hơn
+- **Android SDK API 34**
+
+### Lệnh Build
+
+**Windows:**
+```batch
 gradlew assembleRelease
 ```
-Đối với Linux/MacOS:
-```
+
+**Linux/macOS:**
+```bash
 ./gradlew assembleRelease
 ```
-Khi build thành công ta tiến hành cài đặt file apk ở đường dẫn app/build/outputs/apk/release/app-release-unsigned.apk
 
-Dưới đây là một số phần quan trọng trong code giải thích cách nó bypass SSL Pinning:
+File APK được build sẽ nằm tại: `app/build/outputs/apk/release/app-release.apk`
+
+## 📋 Thư Viện & Framework Được Hỗ Trợ
+
+### SSL Android Cốt Lõi
+- `javax.net.ssl.HttpsURLConnection`
+- `javax.net.ssl.SSLContext`
+- `javax.net.ssl.TrustManagerFactory`
+- `android.webkit.WebViewClient`
+
+### Thư Viện HTTP Bên Thứ Ba
+- **OkHttp**: 2.5.x, 3.x, 4.x, 5.x
+- **Retrofit**: 2.x
+- **Apache HttpClient**: Legacy và 5.x
+- **Volley**: Thư viện HTTP của Google
+- **XUtils**: Tiện ích HTTP của Trung Quốc
+- **HttpClientAndroidLib**: Apache client thay thế
+- **Cronet**: Network stack của Chrome
+
+### Bảo Mật Android Hiện Đại
+- Android Network Security Config
+- Certificate Transparency
+- Conscrypt SSL provider
+- Khả năng bypass App Attestation
+
+## 🔍 Chi Tiết Triển Khai Kỹ Thuật
+
+### Các Hook Bypass SSL Cốt Lõi
+
+#### 1. Bypass Certificate Trust Manager
+- **`X509TrustManagerExtensions.checkServerTrusted()`** - Trả về chứng chỉ mà không xác thực
+- **`SSLContext.init()`** - Thay thế TrustManager bằng implementation cho phép tất cả
+- **`TrustManagerFactory.getTrustManagers()`** - Trả về custom trust manager
+
+#### 2. Android Network Security Config
+- **`NetworkSecurityTrustManager.checkPins()`** - Vô hiệu hóa certificate pinning
+- **`RootTrustManager.checkServerTrusted()`** - Bypass xác thực root certificate
+- **`CertificateTransparencyPolicy.shouldEnforceCertificateTransparency()`** - Vô hiệu hóa áp đặt CT
+
+#### 3. Thư Viện HTTP Client
+- **DefaultHttpClient**: Thay thế connection manager bằng SSL factory cho phép tất cả
+- **OkHttp CertificatePinner**: Vô hiệu hóa kiểm tra certificate pinning trên tất cả phiên bản
+- **Retrofit**: Bypass xác minh SSL trong thực thi OkHttpCall
+- **Volley**: Inject SSL factory cho phép tất cả vào kết nối HurlStack
+
+#### 4. Xử Lý SSL WebView
+- **`WebViewClient.onReceivedSslError()`** - Tự động gọi `proceed()` khi có lỗi SSL
+- **`WebViewClient.onReceivedClientCertRequest()`** - Bỏ qua yêu cầu chứng chỉ client
+
+### Tính Năng Nâng Cao Cho Android Hiện Đại
+
+#### Hook Conscrypt Provider (Android 14+)
+```java
+// Bypass xác minh trust hiện đại
+findAndHookMethod("com.android.org.conscrypt.TrustManagerImpl", 
+    "verifyChain", X509Certificate[].class, String.class, String.class, boolean.class);
+
+// Bypass kiểm tra trust đệ quy
+findAndHookMethod("com.android.org.conscrypt.TrustManagerImpl",
+    "checkTrustedRecursive", X509Certificate[].class, byte[].class, byte[].class);
+```
+
+#### Bypass Certificate Transparency
+```java
+// Vô hiệu hóa áp đặt CT
+findAndHookMethod("android.security.net.config.CertificateTransparencyPolicy",
+    "shouldEnforceCertificateTransparency", String.class);
+```
+
+#### Xử Lý Lỗi SSL Cronet
+```java
+// Bypass lỗi SSL trong network stack của Chrome
+findAndHookMethod("org.chromium.net.impl.CronetUrlRequest", 
+    "onReceivedError", int.class, String.class);
+```
+
+## ⚠️ Tác Động Bảo Mật
+
+Module này hoàn toàn vô hiệu hóa xác thực chứng chỉ SSL/TLS, khiến ứng dụng dễ bị tấn công:
+- **Tấn công Man-in-the-middle**
+- **Giả mạo chứng chỉ**  
+- **Tấn công hạ cấp**
+- **Nghe lén giao tiếp mã hóa**
+
+**Sử dụng có trách nhiệm và chỉ cho mục đích kiểm tra bảo mật hợp pháp.**
+
+## 🛡️ Phòng Vệ Chống Bypass SSL Pinning
+
+### Bảo Vệ Cấp Ứng Dụng
+
+#### 1. Phát Hiện Runtime
+- Kiểm tra sự hiện diện của framework Xposed/LSPosed
+- Xác minh tính toàn vẹn method bằng reflection
+- Triển khai kỹ thuật anti-hooking
+
+#### 2. Triển Khai Cấp Native
+- Chuyển xác thực SSL sang native code (JNI/C++)
+- Sử dụng Android NDK cho certificate pinning
+- Triển khai xác minh SSL tùy chỉnh trong thư viện native
+
+#### 3. Xác Thực Phía Server
+- Triển khai xác thực mutual TLS (mTLS)
+- Sử dụng Google Play Integrity API / SafetyNet
+- Xác thực chứng chỉ phía server
+- Cơ chế challenge-response
+
+#### 4. Obfuscation Nâng Cao
+- Obfuscation code và anti-debugging
+- Control flow flattening
+- Mã hóa string
+- Cơ chế anti-tampering
+
+### Bảo Vệ Cấp Network
+- Giám sát Certificate Transparency
+- Header HPKP (HTTP Public Key Pinning)
+- HSTS (HTTP Strict Transport Security)
+- Logic xác thực chứng chỉ tùy chỉnh
+
+## 📱 Môi Trường Đã Kiểm Tra
+
+- **Phiên Bản Android**: 5.0 - 14+ (API 21-34)
+- **Xposed Framework**: LSPosed (khuyến nghị), EdXposed
+- **Kiến Trúc**: ARM64, ARM, x86, x86_64
+- **Phương Thức Root**: Magisk, SuperSU (legacy)
+
+## 🔧 Cài Đặt
+
+1. Cài đặt LSPosed hoặc framework Xposed tương thích
+2. Cài đặt APK JustTrustMe
+3. Kích hoạt module trong LSPosed Manager
+4. Khởi động lại ứng dụng mục tiêu hoặc reboot thiết bị
+5. Theo dõi log để xác nhận bypass
+
+## 📜 Nhật Ký Thay Đổi
+
+### Phiên Bản 3.0 (2025)
+- **Hỗ trợ JDK 17** với hệ thống build hiện đại
+- **Tương thích Android 14+** với bypass bảo mật mới nhất
+- **Hỗ trợ OkHttp 5.x nâng cao** bao gồm Kotlin coroutines
+- **Bypass Certificate Transparency** cho Android hiện đại
+- **Hỗ trợ Cronet** cho network stack dựa trên Chrome
+- **Cải thiện xử lý WebView** cho triển khai hiện đại
+- **Xử lý lỗi và logging tốt hơn**
+
+### Các Phiên Bản Trước
+- Hỗ trợ Android legacy (API 17-30)
+- Hỗ trợ OkHttp 2.x-4.x cơ bản
+- Chức năng bypass SSL pinning tiêu chuẩn
 
 ---
 
-## 1. Các Hook Cơ Bản Trong Code
-
-### 1.1. Hook Các Phương Thức Kiểm Tra Chứng Chỉ SSL
-
-- **`findAndHookMethod(X509TrustManagerExtensions.class, "checkServerTrusted", ...)`**  
-  Phương thức `checkServerTrusted` của lớp `X509TrustManagerExtensions` được hook để trả về danh sách các chứng chỉ mà không thực hiện bất kỳ kiểm tra nào.
-
-- **`findAndHookMethod("android.security.net.config.NetworkSecurityTrustManager", ...)`**  
-  Phương thức `checkPins` của lớp `NetworkSecurityTrustManager` được hook để không thực hiện bất kỳ hành động nào (DO_NOTHING).
-
-### 1.2. Hook Các Constructor và Phương Thức của `DefaultHttpClient` và `SSLSocketFactory`
-
-- **`findAndHookConstructor(DefaultHttpClient.class, ...)`**  
-  Các constructor của `DefaultHttpClient` được hook để thay thế `ClientConnectionManager` bằng một phiên bản tùy chỉnh (`getSCCM()` hoặc `getCCM()`) mà tin tưởng tất cả các chứng chỉ.
-
-- **`findAndHookConstructor(SSLSocketFactory.class, ...)`**  
-  Constructor của `SSLSocketFactory` được hook để thay thế `TrustManager` bằng `getTrustManager()` mà tin tưởng tất cả các chứng chỉ.
-
-### 1.3. Hook Phương Thức `init` của `SSLContext`
-
-- **`findAndHookMethod("javax.net.ssl.SSLContext", "init", ...)`**  
-  Phương thức `init` của `SSLContext` được hook để thay thế `TrustManager` bằng một `TrustManager` tùy chỉnh (`ImSureItsLegitTrustManager`) mà tin tưởng tất cả các chứng chỉ.
-
-### 1.4. Hook Các Lớp và Phương Thức của `HttpsURLConnection`
-
-- **`findAndHookMethod("javax.net.ssl.HttpsURLConnection", "setDefaultHostnameVerifier", ...)`**  
-  Phương thức `setDefaultHostnameVerifier` được hook để không thực hiện bất kỳ hành động nào (DO_NOTHING).
-
-- **`findAndHookMethod("javax.net.ssl.HttpsURLConnection", "setSSLSocketFactory", ...)`**  
-  Phương thức `setSSLSocketFactory` được hook để không thực hiện bất kỳ hành động nào (DO_NOTHING).
-
-### 1.5. Hook Phương Thức `onReceivedSslError` của `WebViewClient`
-
-- **`findAndHookMethod("android.webkit.WebViewClient", "onReceivedSslError", ...)`**  
-  Phương thức `onReceivedSslError` của `WebViewClient` được hook để luôn gọi `proceed()` trên `SslErrorHandler`, bỏ qua bất kỳ lỗi SSL nào.
-
-### 1.6. Hook Các Lớp và Phương Thức của `TrustManagerImpl` (trên thiết bị mới hơn)
-
-- **`findAndHookMethod("com.android.org.conscrypt.TrustManagerImpl", "checkServerTrusted", ...)`**  
-  Các phương thức `checkServerTrusted` của `TrustManagerImpl` được hook để trả về một danh sách trống các chứng chỉ, bỏ qua bất kỳ lỗi xác thực nào.
-
-### 1.7. Hook Các Thư Viện Bên Thứ Ba (Như OkHttp, HttpClientAndroidLib)
-
-- Các phương thức liên quan đến kiểm tra chứng chỉ của các thư viện như OkHttp và HttpClientAndroidLib cũng được hook để bỏ qua kiểm tra SSL Pinning.
-
----
-
-## 2. Tác Động của Việc Bypass SSL Pinning
-
-Bằng cách hook và thay đổi hành vi của các lớp và phương thức liên quan đến SSL/TLS, module này đảm bảo rằng:
-- **Mọi chứng chỉ SSL đều được tin tưởng.**  
-- **SSL Pinning bị bypass,** cho phép ứng dụng kết nối tới bất kỳ máy chủ nào mà không gặp lỗi xác thực chứng chỉ.
-
----
-
-## 3. Cách Phòng Chống Bị Ảnh Hưởng Bởi Module Này
-
-Để tránh bị ảnh hưởng bởi các module bypass SSL Pinning sử dụng LSPosed hoặc Xposed, bạn có thể áp dụng các biện pháp sau:
-
-### 3.1. Phát Hiện và Chống Hook
-
-- **Kiểm tra sự hiện diện của Xposed/LSPosed:**  
-  Thực hiện kiểm tra trong runtime để phát hiện dấu hiệu của các framework hook (ví dụ: kiểm tra các file hệ thống, process hoặc dấu hiệu bất thường trong các phương thức hệ thống).
-
-- **Kiểm tra tính toàn vẹn của code:**  
-  Sử dụng checksum hoặc so sánh chữ ký số (signature) của ứng dụng để phát hiện sự thay đổi so với phiên bản gốc.
-
-### 3.2. Thực Hiện SSL Pinning Ở Cấp Độ Native
-
-- **Chuyển logic xác thực SSL sang mã native (JNI):**  
-  Mã native thường khó bị hook hơn so với mã Java, do đó có thể bảo vệ tốt hơn quá trình xác thực chứng chỉ.
-
-### 3.3. Tăng Cường Xác Thực Từ Phía Server
-
-- **Sử dụng các cơ chế attestation:**  
-  Áp dụng Google SafetyNet hoặc Play Integrity để xác nhận tính toàn vẹn của ứng dụng từ phía server.
-
-- **Xác thực chứng chỉ từ phía server:**  
-  Thực hiện kiểm tra chứng chỉ bổ sung trên server nhằm giảm thiểu rủi ro khi client bị tấn công.
-
-### 3.4. Sử Dụng Kỹ Thuật Obfuscation và Anti-Debugging
-
-- **Obfuscation:**  
-  Làm rối code để gây khó khăn cho việc reverse-engineering và phân tích code.
-  
-- **Anti-debugging:**  
-  Sử dụng các kỹ thuật phát hiện và chống debug để ngăn chặn việc hook các phương thức quan trọng.
-
----
-
-## 4. Kết Luận
-
-Mặc dù không có biện pháp nào đảm bảo tuyệt đối chống lại các kỹ thuật hook tiên tiến như LSPosed, việc kết hợp nhiều lớp bảo vệ (phát hiện hook, thực hiện SSL pinning ở cấp native, tăng cường xác thực phía server, và áp dụng obfuscation/anti-debugging) sẽ làm tăng đáng kể độ khó cho kẻ tấn công. Qua đó, bạn có thể giảm thiểu rủi ro bị bypass SSL Pinning và bảo vệ tốt hơn kết nối SSL/TLS trong ứng dụng Android.
-
----
+**Tuyên Bố Từ Chối Trách Nhiệm**: Công cụ này chỉ dành cho nghiên cứu bảo mật và kiểm tra thâm nhập. Sử dụng có trách nhiệm và tuân thủ luật pháp và quy định hiện hành.

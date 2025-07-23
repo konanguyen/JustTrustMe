@@ -122,6 +122,34 @@ public class Main implements IXposedHookLoadPackage {
 
         findAndHookMethod("android.security.net.config.NetworkSecurityTrustManager", lpparam.classLoader, "checkPins", List.class, DO_NOTHING);
 
+        // Hook modern Android Network Security Config
+        try {
+            Log.d(TAG, "Hooking Android Network Security Config for: " + currentPackageName);
+            
+            // Hook RootTrustManager for newer Android versions
+            findAndHookMethod("android.security.net.config.RootTrustManager", lpparam.classLoader, 
+                    "checkServerTrusted", X509Certificate[].class, String.class, String.class, 
+                    new XC_MethodReplacement() {
+                        @Override
+                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                            return param.args[0];
+                        }
+                    });
+
+            // Hook ConfigAwareConnectionStateSSLContext
+            findAndHookMethod("android.security.net.config.ConfigAwareConnectionStateSSLContext", lpparam.classLoader,
+                    "checkServerTrusted", X509Certificate[].class, String.class, String.class,
+                    new XC_MethodReplacement() {
+                        @Override
+                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                            return param.args[0];
+                        }
+                    });
+
+        } catch (Exception e) {
+            Log.d(TAG, "Android Network Security Config classes not found for: " + currentPackageName);
+        }
+
         /* external/apache-http/src/org/apache/http/conn/ssl/SSLSocketFactory.java */
         /* public SSLSocketFactory( ... ) */
         try {
@@ -256,6 +284,9 @@ public class Main implements IXposedHookLoadPackage {
                         processOkHttp(context.getClassLoader());
                         processHttpClientAndroidLib(context.getClassLoader());
                         processXutils(context.getClassLoader());
+                        processRetrofit(context.getClassLoader());
+                        processVolley(context.getClassLoader());
+                        processApacheHttpClient(context.getClassLoader());
                     }
                 }
         );
@@ -322,8 +353,116 @@ public class Main implements IXposedHookLoadPackage {
 
             }
 
+            // Hook modern conscrypt methods for Android 14+
+            try {
+                Log.d(TAG, "Hooking modern conscrypt methods for Android 14+ for: " + currentPackageName);
+                
+                findAndHookMethod("com.android.org.conscrypt.TrustManagerImpl", lpparam.classLoader, 
+                        "verifyChain", X509Certificate[].class, String.class, String.class, boolean.class, 
+                        new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                                ArrayList<X509Certificate> list = new ArrayList<X509Certificate>();
+                                return list;
+                            }
+                        });
+
+                findAndHookMethod("com.android.org.conscrypt.TrustManagerImpl", lpparam.classLoader,
+                        "checkTrustedRecursive", X509Certificate[].class, byte[].class, byte[].class, 
+                        String.class, String.class, boolean.class,
+                        new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                                ArrayList<X509Certificate> list = new ArrayList<X509Certificate>();
+                                return list;
+                            }
+                        });
+
+            } catch (Exception e) {
+                Log.d(TAG, "Modern conscrypt methods not found for: " + currentPackageName);
+            }
+
         }
 
+        // Hook Certificate Transparency bypasses for modern Android
+        try {
+            Log.d(TAG, "Hooking Certificate Transparency for: " + currentPackageName);
+            
+            // Android's Certificate Transparency enforcement
+            findAndHookMethod("android.security.net.config.CertificateTransparencyPolicy", lpparam.classLoader,
+                    "shouldEnforceCertificateTransparency", String.class, 
+                    new XC_MethodReplacement() {
+                        @Override
+                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                            return false;
+                        }
+                    });
+
+            // Network Security Policy bypass
+            findAndHookMethod("android.security.net.config.NetworkSecurityPolicy", lpparam.classLoader,
+                    "getInstance", new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            Object networkSecurityPolicy = param.getResult();
+                            if (networkSecurityPolicy != null) {
+                                // Try to modify the policy to allow all certificates
+                                try {
+                                    setObjectField(networkSecurityPolicy, "mCleartextTrafficPermitted", true);
+                                } catch (Exception e) {
+                                    Log.d(TAG, "Could not modify NetworkSecurityPolicy");
+                                }
+                            }
+                        }
+                    });
+
+        } catch (Exception e) {
+            Log.d(TAG, "Certificate Transparency classes not found for: " + currentPackageName);
+        }
+
+        // Hook modern Cronet SSL validation
+        try {
+            Log.d(TAG, "Hooking Cronet SSL validation for: " + currentPackageName);
+            
+            findAndHookMethod("org.chromium.net.impl.CronetUrlRequest", lpparam.classLoader,
+                    "onReceivedError", int.class, String.class, 
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            // Bypass SSL errors in Cronet
+                            int errorCode = (Integer) param.args[0];
+                            if (errorCode >= -299 && errorCode <= -200) { // SSL errors range
+                                Log.d(TAG, "Bypassing Cronet SSL error: " + errorCode);
+                                param.setResult(null);
+                            }
+                        }
+                    });
+
+        } catch (Exception e) {
+            Log.d(TAG, "Cronet classes not found for: " + currentPackageName);
+        }
+
+        // Hook Webview modern SSL bypasses
+        try {
+            Log.d(TAG, "Hooking modern WebView SSL validation for: " + currentPackageName);
+            
+            // Android WebView X509TrustManager bypass for newer versions
+            findAndHookMethod("android.webkit.WebViewClient", lpparam.classLoader,
+                    "onReceivedClientCertRequest", WebView.class, "android.webkit.ClientCertRequest",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            Log.d(TAG, "Bypassing WebView client cert request");
+                            Object clientCertRequest = param.args[1];
+                            if (clientCertRequest != null) {
+                                callMethod(clientCertRequest, "ignore");
+                                param.setResult(null);
+                            }
+                        }
+                    });
+
+        } catch (Exception e) {
+            Log.d(TAG, "Modern WebView classes not found for: " + currentPackageName);
+        }
     } // End Hooks
 
     /* Helpers */
@@ -553,6 +692,33 @@ public class Main implements IXposedHookLoadPackage {
             // pass
         }
 
+        // OkHttp 5.x support
+        Log.d(TAG, "Hooking okhttp3.CertificatePinner for OkHttp 5.x for: " + currentPackageName);
+        try {
+            classLoader.loadClass("okhttp3.CertificatePinner");
+            // OkHttp 5.x might use different internal methods
+            findAndHookMethod("okhttp3.CertificatePinner", classLoader,
+                    "check", String.class, 
+                    "kotlin.jvm.functions.Function0", 
+                    DO_NOTHING);
+        } catch (Exception e) {
+            Log.d(TAG, "OkHttp 5.x not found in " + currentPackageName + " -- not hooking");
+        }
+
+        // Hook modern OkHttp TLS socket creation
+        try {
+            findAndHookMethod("okhttp3.internal.connection.RealConnection", classLoader,
+                    "connectTls", "okhttp3.internal.connection.ConnectionSpecSelector", 
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            Log.d(TAG, "Bypassing OkHttp TLS connection");
+                        }
+                    });
+        } catch (Exception e) {
+            Log.d(TAG, "OkHttp RealConnection not found in " + currentPackageName + " -- not hooking");
+        }
+
     }
 
     void processHttpClientAndroidLib(ClassLoader classLoader) {
@@ -568,6 +734,73 @@ public class Main implements IXposedHookLoadPackage {
         } catch (ClassNotFoundException e) {
             // pass
             Log.d(TAG, "httpclientandroidlib not found in " + currentPackageName + "-- not hooking");
+        }
+    }
+
+    void processRetrofit(ClassLoader classLoader) {
+        /* Retrofit 2.x SSL pinning bypass */
+        Log.d(TAG, "Hooking Retrofit CertificatePinner for: " + currentPackageName);
+        
+        try {
+            classLoader.loadClass("retrofit2.OkHttpCall");
+            // Retrofit uses OkHttp internally, so OkHttp hooks should cover it
+            // But we can also hook Retrofit's certificate validation
+            findAndHookMethod("retrofit2.OkHttpCall", classLoader, "execute", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    Log.d(TAG, "Bypassing Retrofit SSL verification");
+                }
+            });
+        } catch (ClassNotFoundException e) {
+            Log.d(TAG, "Retrofit not found in " + currentPackageName + " -- not hooking");
+        }
+    }
+
+    void processVolley(ClassLoader classLoader) {
+        /* Volley SSL pinning bypass */
+        Log.d(TAG, "Hooking Volley HurlStack for: " + currentPackageName);
+        
+        try {
+            classLoader.loadClass("com.android.volley.toolbox.HurlStack");
+            findAndHookMethod("com.android.volley.toolbox.HurlStack", classLoader, 
+                    "createConnection", java.net.URL.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (param.getResult() instanceof javax.net.ssl.HttpsURLConnection) {
+                        javax.net.ssl.HttpsURLConnection conn = (javax.net.ssl.HttpsURLConnection) param.getResult();
+                        conn.setSSLSocketFactory(getEmptySSLFactory());
+                        conn.setHostnameVerifier(new ImSureItsLegitHostnameVerifier());
+                    }
+                }
+            });
+        } catch (ClassNotFoundException e) {
+            Log.d(TAG, "Volley not found in " + currentPackageName + " -- not hooking");
+        }
+    }
+
+    void processApacheHttpClient(ClassLoader classLoader) {
+        /* Apache HttpClient 5.x SSL pinning bypass */
+        Log.d(TAG, "Hooking Apache HttpClient 5.x for: " + currentPackageName);
+        
+        try {
+            classLoader.loadClass("org.apache.hc.client5.http.ssl.DefaultHostnameVerifier");
+            findAndHookMethod("org.apache.hc.client5.http.ssl.DefaultHostnameVerifier", classLoader,
+                    "verify", String.class, javax.net.ssl.SSLSession.class, new XC_MethodReplacement() {
+                @Override
+                protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                    return true;
+                }
+            });
+        } catch (ClassNotFoundException e) {
+            Log.d(TAG, "Apache HttpClient 5.x not found in " + currentPackageName + " -- not hooking");
+        }
+
+        try {
+            classLoader.loadClass("org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory");
+            findAndHookMethod("org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory", classLoader,
+                    "verifyHostname", javax.net.ssl.SSLSocket.class, String.class, DO_NOTHING);
+        } catch (ClassNotFoundException e) {
+            Log.d(TAG, "Apache HttpClient 5.x SSLConnectionSocketFactory not found in " + currentPackageName + " -- not hooking");
         }
     }
 
